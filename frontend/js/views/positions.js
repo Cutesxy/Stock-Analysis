@@ -87,11 +87,11 @@ export function renderPositions(root) {
   if (tot > 0) {
     const w = { d: dVal / tot * 100, g: gVal / tot * 100, c: L.cash / tot * 100 };
     html += `<div class="panel"><h2>配置结构 <span class="mini">当前 vs 推荐</span></h2>
-      <div class="wbar"><div style="width:${w.d}%;background:#3b82f6"></div><div style="width:${w.g}%;background:#10b981"></div><div style="width:${w.c}%;background:#475569"></div></div>
+      <div class="wbar"><div style="width:${w.d}%;background:#4c7dff"></div><div style="width:${w.g}%;background:#e6b450"></div><div style="width:${w.c}%;background:#4a5568"></div></div>
       <div class="wlegend">
-      <span><span class="dotc" style="background:#3b82f6"></span>压舱 <b>${w.d.toFixed(0)}%</b>(推荐${(rw.dividend * 100).toFixed(0)}%)</span>
-      <span><span class="dotc" style="background:#10b981"></span>进攻 <b>${w.g.toFixed(0)}%</b>(推荐${(rw.games * 100).toFixed(0)}%)</span>
-      <span><span class="dotc" style="background:#475569"></span>现金 <b>${w.c.toFixed(0)}%</b>(推荐${(rw.cash * 100).toFixed(0)}%)</span>
+      <span><span class="dotc" style="background:#4c7dff"></span>压舱 <b>${w.d.toFixed(0)}%</b>(推荐${(rw.dividend * 100).toFixed(0)}%)</span>
+      <span><span class="dotc" style="background:#e6b450"></span>进攻 <b>${w.g.toFixed(0)}%</b>(推荐${(rw.games * 100).toFixed(0)}%)</span>
+      <span><span class="dotc" style="background:#4a5568"></span>现金 <b>${w.c.toFixed(0)}%</b>(推荐${(rw.cash * 100).toFixed(0)}%)</span>
       <span style="margin-left:auto">${w.g < rw.games * 100 - 5 ? '⬆️进攻仓欠配——两档条件单成交即到位' : (w.g > rw.games * 100 + 5 ? '⬇️进攻仓超配' : '✅配置在推荐区间')}</span></div></div>`;
   }
 
@@ -138,8 +138,8 @@ export function renderPositions(root) {
     const { pts, depPts } = equitySeries(D, s.ledger, live);
     drawCurve('ch-equity', {
       series: [
-        { name: '账户净值', color: '#60a5fa', points: pts, width: 2 },
-        { name: '累计入金', color: '#64748b', points: depPts, dash: '5 4' },
+        { name: '账户净值', color: '#4c7dff', points: pts, width: 2 },
+        { name: '累计入金', color: '#5a6478', points: depPts, dash: '5 4' },
       ],
       base: depPts.length ? depPts[depPts.length - 1][1] : null,
       baseLabel: '累计入金',

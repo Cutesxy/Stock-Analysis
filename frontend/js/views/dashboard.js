@@ -212,7 +212,7 @@ export function renderDashboard(root) {
   const el = document.getElementById('ch-main');
   if (el) {
     const cfg = chartCfg[chartSym]();
-    drawChart('ch-main', Object.assign({ height: 440 }, cfg));
+    drawChart('ch-main', Object.assign({ height: 470 }, cfg));
   }
 }
 

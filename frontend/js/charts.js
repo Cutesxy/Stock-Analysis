@@ -1,11 +1,12 @@
 // 图表引擎:蜡烛图+成交量+通道带+作战位(TradingView式)
-const C = { up: '#ef5350', down: '#26a69a', grid: '#1f2735', txt: '#787b86', cross: '#4a5568' };
+const C = { up: '#f6465d', down: '#2ebd85', grid: '#1d2637', txt: '#8b94a8', cross: '#454f63' };
+const CHART_BG = '#0f131c';
 
 export function drawChart(containerId, o) {
   const el = document.getElementById(containerId);
   const W = Math.max(el.clientWidth || 920, 620);
   const H = o.height || 430;
-  const M = { l: 8, r: 150, t: 26, b: 52 };   // b含成交量区
+  const M = { l: 8, r: 162, t: 28, b: 54 };   // b含成交量区
   const VH = 64;                                // 成交量区高
   const today = new Date().toISOString().slice(0, 10);
   // 数据:优先OHLC,退化用收盘线
@@ -42,21 +43,21 @@ export function drawChart(containerId, o) {
   const yfmt = o.yfmt || (v => v.toFixed(3));
   const UP = o.cnColor !== false;   // 中式:红涨绿跌
 
-  let s = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="background:#131722;border-radius:10px">`;
+  let s = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="background:${CHART_BG};border-radius:11px">`;
   // 价格网格+右侧刻度
   for (let i = 0; i <= 5; i++) {
     const v = ymin + (ymax - ymin) * i / 5, y = PY(v);
     s += `<line x1="${M.l}" y1="${y}" x2="${W - M.r}" y2="${y}" stroke="${C.grid}" stroke-width="1"/>`
-      + `<text x="${W - M.r + 6}" y="${y + 4}" fill="${C.txt}" font-size="10.5" font-family="Menlo,monospace">${yfmt(v)}</text>`;
+      + `<text x="${W - M.r + 6}" y="${y + 4}" fill="${C.txt}" font-size="11" font-family="Menlo,monospace">${yfmt(v)}</text>`;
   }
   // 成交量区分隔+刻度
   const vy0 = H - M.b;
   s += `<line x1="${M.l}" y1="${vy0 - VH - 6}" x2="${W - M.r}" y2="${vy0 - VH - 6}" stroke="${C.grid}"/>`
-    + `<text x="${W - M.r + 6}" y="${vy0 - VH + 4}" fill="#565d6b" font-size="9">量</text>`;
+    + `<text x="${W - M.r + 6}" y="${vy0 - VH + 4}" fill="#565d6b" font-size="10.5">量</text>`;
   // 时间轴
   for (let i = 0; i < 7; i++) {
     const idx = Math.floor(i * (n - 1) / 6);
-    s += `<text x="${X(t(rows[idx][0]))}" y="${H - 8}" fill="${C.txt}" font-size="10" text-anchor="middle">${rows[idx][0].slice(2, 7)}</text>`;
+    s += `<text x="${X(t(rows[idx][0]))}" y="${H - 8}" fill="${C.txt}" font-size="11" text-anchor="middle">${rows[idx][0].slice(2, 7)}</text>`;
   }
   const rightLabels = [];
   // 通道带
@@ -92,7 +93,7 @@ export function drawChart(containerId, o) {
       const col = up ? C.up : C.down;
       s += `<line x1="${x}" y1="${PY(hi)}" x2="${x}" y2="${PY(lo)}" stroke="${col}" stroke-width="1"/>`;
       const y1 = PY(Math.max(op, cl)), y2 = PY(Math.min(op, cl));
-      s += `<rect x="${x - bw / 2}" y="${y1}" width="${bw}" height="${Math.max(y2 - y1, 1)}" fill="${up ? col : '#131722'}" stroke="${col}" stroke-width="${up ? 0 : 1}" rx="${Math.min(bw / 4, 1.5)}"/>`;
+      s += `<rect x="${x - bw / 2}" y="${y1}" width="${bw}" height="${Math.max(y2 - y1, 1)}" fill="${up ? col : CHART_BG}" stroke="${col}" stroke-width="${up ? 0 : 1}" rx="${Math.min(bw / 4, 1.5)}"/>`;
       if (vol) s += `<rect x="${x - bw / 2}" y="${VY(vol)}" width="${bw}" height="${vy0 - VY(vol)}" fill="${col}" opacity=".32"/>`;
     }
   } else {
@@ -104,7 +105,7 @@ export function drawChart(containerId, o) {
     const col = n > 1 && o.live >= rows[n - 2][cidx] ? C.up : C.down;
     s += `<circle cx="${x}" cy="${y}" r="3.2" fill="#fff"><animate attributeName="r" values="3.2;5;3.2" dur="2s" repeatCount="indefinite"/></circle>`
       + `<rect x="${M.l + 2}" y="${y - 9}" width="${(yfmt(o.live) + '').length * 7 + 10}" height="18" rx="4" fill="${col}"/>`
-      + `<text x="${M.l + 8}" y="${y + 4.5}" fill="#fff" font-size="11.5" font-weight="700" font-family="Menlo,monospace">${yfmt(o.live)}</text>`;
+      + `<text x="${M.l + 8}" y="${y + 4.5}" fill="#fff" font-size="12" font-weight="700" font-family="Menlo,monospace">${yfmt(o.live)}</text>`;
   }
   // 作战位
   for (const L of (o.levels || [])) {
@@ -120,11 +121,11 @@ export function drawChart(containerId, o) {
   // 右侧标签碰撞避让
   rightLabels.sort((a, b) => a[0] - b[0]);
   for (let i = 1; i < rightLabels.length; i++) {
-    if (rightLabels[i][0] - rightLabels[i - 1][0] < 12.5) rightLabels[i][0] = rightLabels[i - 1][0] + 12.5;
+    if (rightLabels[i][0] - rightLabels[i - 1][0] < 13.5) rightLabels[i][0] = rightLabels[i - 1][0] + 13.5;
   }
   for (const [y, c, lab] of rightLabels) {
     if (y < M.t + 8 || y > H - M.b - VH - 14) continue;
-    s += `<text x="${W - M.r + 6}" y="${y + 3.5}" fill="${c}" font-size="10" font-weight="600">${lab}</text>`;
+    s += `<text x="${W - M.r + 6}" y="${y + 3.5}" fill="${c}" font-size="11" font-weight="600">${lab}</text>`;
   }
   s += `<line id="${containerId}-cross" x1="0" x2="0" y1="${M.t}" y2="${vy0}" stroke="${C.cross}" stroke-width="1" visibility="hidden"/>`;
   s += `</svg><div class="tip"></div>`;
@@ -187,20 +188,20 @@ export function drawCurve(containerId, o) {
   const X = tv => M.l + (tv - t0) / (t1 - t0 || 1) * (W - M.l - M.r);
   const Y = v => M.t + (ymax - v) / (ymax - ymin) * (H - M.t - M.b);
   const yfmt = o.yfmt || (v => v.toFixed(0));
-  let s = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="background:#131722;border-radius:10px">`;
+  let s = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="background:${CHART_BG};border-radius:11px">`;
   for (let i = 0; i <= 4; i++) {
     const v = ymin + (ymax - ymin) * i / 4, y = Y(v);
     s += `<line x1="${M.l}" y1="${y}" x2="${W - M.r}" y2="${y}" stroke="${C.grid}"/>`
-      + `<text x="${M.l - 7}" y="${y + 4}" fill="${C.txt}" font-size="11" text-anchor="end">${yfmt(v)}</text>`;
+      + `<text x="${M.l - 7}" y="${y + 4}" fill="${C.txt}" font-size="11.5" text-anchor="end">${yfmt(v)}</text>`;
   }
   const pts = o.series[0].points;
   for (let i = 0; i < 7; i++) {
     const idx = Math.floor(i * (pts.length - 1) / 6);
-    s += `<text x="${X(t(pts[idx][0]))}" y="${H - 7}" fill="${C.txt}" font-size="10.5" text-anchor="middle">${pts[idx][0].slice(2, 7)}</text>`;
+    s += `<text x="${X(t(pts[idx][0]))}" y="${H - 7}" fill="${C.txt}" font-size="11" text-anchor="middle">${pts[idx][0].slice(2, 7)}</text>`;
   }
   if (o.base != null) {
     s += `<line x1="${M.l}" y1="${Y(o.base)}" x2="${W - M.r}" y2="${Y(o.base)}" stroke="#64748b" stroke-width="1" stroke-dasharray="6 4"/>`
-      + `<text x="${M.l + 4}" y="${Y(o.base) - 5}" fill="#94a3b8" font-size="10.5">${o.baseLabel || '基准'}</text>`;
+      + `<text x="${M.l + 4}" y="${Y(o.base) - 5}" fill="#94a3b8" font-size="11">${o.baseLabel || '基准'}</text>`;
   }
   for (const se of o.series) {
     const path = se.points.map(p => X(t(p[0])) + ',' + Y(p[1])).join(' ');
