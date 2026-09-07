@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# 运行时数据(个人持仓/缓存,绝不入库)
+backend/data/
+
+# 系统
+.DS_Store

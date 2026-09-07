@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>双ETF作战系统 · 红利 + 游戏</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="loading" style="display:flex;min-height:100vh;align-items:center;justify-content:center;flex-direction:column;gap:12px">
+  <div style="font-size:15px;color:#8b96a8">正在获取历史数据并计算通道与回测…(首次约5秒)</div>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+<header>
+  <h1>双ETF作战系统</h1>
+  <span class="badge" id="mkt">…</span>
+  <span class="note" id="upt"></span>
+  <span style="flex:1"></span>
+  <button onclick="refresh()">刷新行情</button>
+</header>
+<div class="warnbar" id="stopbanner"></div>
+<div class="todo" id="todo"></div>
+<div class="cards" id="cards"></div>
+
+<div class="panel">
+  <h2 id="h-div">红利 · 通道与作战位</h2>
+  <div class="chartbox" id="ch-div"></div>
+</div>
+<div class="panel">
+  <h2 id="h-gam">游戏 · 通道与作战位</h2>
+  <div class="chartbox" id="ch-gam"></div>
+</div>
+<div class="grid2">
+  <div class="panel" style="margin:0">
+    <h2>上证指数 · 剧本开关</h2>
+    <div class="chartbox" id="ch-sse"></div>
+  </div>
+  <div class="panel" style="margin:0">
+    <h2>时间窗口</h2>
+    <div id="clockbox"></div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>交易流水 · 本地数据库 <span class="mini">(成交后点动作行的[记账]一键入账;持仓/加权成本/现金自动算,存于本机SQLite)</span></h2>
+  <div class="ledger-grid">
+    <div>
+      <div class="lform" id="lform">
+        <input type="date" id="lf-date" style="width:140px">
+        <select id="lf-etf"><option value="dividend">红利</option><option value="games">游戏</option><option value="cash">现金</option></select>
+        <select id="lf-act"><option value="买入">买入</option><option value="卖出">卖出</option><option value="分红">分红</option><option value="入金">入金</option></select>
+        <input type="number" id="lf-price" step="any" placeholder="价格/每股">
+        <input type="number" id="lf-shares" step="100" placeholder="股数/金额">
+        <input type="number" id="lf-fee" step="any" placeholder="费" style="width:64px">
+        <button onclick="addLedger()">＋ 记一笔</button>
+      </div>
+      <table id="ledger-table"></table>
+      <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
+        <button class="ghost sm" onclick="exportLedger()">导出备份</button>
+        <button class="ghost sm" onclick="document.getElementById('imp').click()">导入</button>
+        <button class="ghost sm" onclick="loadDemo()">载入演示数据</button>
+        <input type="file" id="imp" accept=".json" style="display:none" onchange="importLedger(this)">
+        <span class="mini" id="cash-warn"></span>
+      </div>
+    </div>
+    <div id="pf"></div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>胜率与期望 · 实时 <span class="mini">(系统层·资产层·情境层 · 不构成投资建议)</span></h2>
+  <div id="wr"></div>
+</div>
+
+<div class="panel">
+  <h2>追涨决策 · 数据检验 <span class="mini">(锚点组合模拟·同一套规则下五种加仓方式对比)</span></h2>
+  <div id="chase"></div>
+</div>
+
+<footer id="ft"></footer>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
