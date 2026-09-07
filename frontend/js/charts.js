@@ -100,3 +100,57 @@ export function drawChart(containerId, o) {
   });
   svg.addEventListener('mouseleave', () => { tip.style.display = 'none'; cross.setAttribute('visibility', 'hidden'); });
 }
+
+// 折线图(账户收益曲线等):series=[{name,color,points:[[date,val]...]}]
+export function drawCurve(containerId, o) {
+  const el = document.getElementById(containerId);
+  const W = Math.max(el.clientWidth || 920, 640), H = o.height || 300;
+  const M = { l: 58, r: 16, t: 16, b: 26 };
+  const t = s => new Date(s + 'T00:00:00').getTime();
+  const all = o.series.flatMap(s => s.points.map(p => p[1]));
+  const t0 = t(o.series[0].points[0][0]), t1 = t(o.series[0].points[o.series[0].points.length - 1][0]);
+  let ymin = Math.min(...all), ymax = Math.max(...all);
+  const pad = (ymax - ymin) * 0.06 || 1; ymin -= pad; ymax += pad;
+  const X = tv => M.l + (tv - t0) / (t1 - t0 || 1) * (W - M.l - M.r);
+  const Y = v => M.t + (ymax - v) / (ymax - ymin) * (H - M.t - M.b);
+  const yfmt = o.yfmt || (v => v.toFixed(0));
+  let s = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">`;
+  for (let i = 0; i <= 4; i++) {
+    const v = ymin + (ymax - ymin) * i / 4, y = Y(v);
+    s += `<line x1="${M.l}" y1="${y}" x2="${W - M.r}" y2="${y}" stroke="#1c2736"/>`
+      + `<text x="${M.l - 7}" y="${y + 4}" fill="#8b96a8" font-size="11" text-anchor="end">${yfmt(v)}</text>`;
+  }
+  const pts = o.series[0].points;
+  for (let i = 0; i < 7; i++) {
+    const idx = Math.floor(i * (pts.length - 1) / 6);
+    s += `<text x="${X(t(pts[idx][0]))}" y="${H - 7}" fill="#8b96a8" font-size="10.5" text-anchor="middle">${pts[idx][0].slice(2, 7)}</text>`;
+  }
+  if (o.base != null) {
+    s += `<line x1="${M.l}" y1="${Y(o.base)}" x2="${W - M.r}" y2="${Y(o.base)}" stroke="#64748b" stroke-width="1" stroke-dasharray="6 4"/>`
+      + `<text x="${M.l + 4}" y="${Y(o.base) - 5}" fill="#94a3b8" font-size="10.5">${o.baseLabel || '基准'}</text>`;
+  }
+  for (const se of o.series) {
+    const path = se.points.map(p => X(t(p[0])) + ',' + Y(p[1])).join(' ');
+    s += `<polyline points="${path}" fill="none" stroke="${se.color}" stroke-width="${se.width || 1.7}" stroke-linejoin="round" ${se.dash ? `stroke-dasharray="${se.dash}"` : ''}/>`;
+  }
+  const lastPt = o.series[0].points[o.series[0].points.length - 1];
+  s += `<circle cx="${X(t(lastPt[0]))}" cy="${Y(lastPt[1])}" r="3.5" fill="#fff"/>`;
+  s += `</svg><div class="tip"></div>`;
+  el.innerHTML = s;
+  // 悬停
+  const svg = el.querySelector('svg'), tip = el.querySelector('.tip');
+  svg.addEventListener('mousemove', e => {
+    const r = svg.getBoundingClientRect();
+    const vx = (e.clientX - r.left) * (W / r.width);
+    if (vx < M.l || vx > W - M.r) { tip.style.display = 'none'; return; }
+    const tv = t0 + (vx - M.l) / (W - M.l - M.r) * (t1 - t0);
+    let best = 0, bd = 1e18;
+    for (let i = 0; i < pts.length; i++) { const d = Math.abs(t(pts[i][0]) - tv); if (d < bd) { bd = d; best = i; } }
+    tip.style.display = 'block';
+    tip.innerHTML = `<b>${pts[best][0]}</b>` + o.series.map(se =>
+      `<br><span style="color:${se.color}">●</span> ${se.name}: ${o.tipFmt ? o.tipFmt(se.points[best][1]) : se.points[best][1].toFixed(0)}`).join('');
+    tip.style.left = Math.min(Math.max(e.clientX - r.left + 14, 0), r.width - 170) + 'px';
+    tip.style.top = (e.clientY - r.top - 34) + 'px';
+  });
+  svg.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+}

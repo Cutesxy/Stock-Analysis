@@ -136,15 +136,16 @@ def find_chase_events(gd: list) -> list:
 # ------------------------------------------------------------------
 # E方案事件模拟
 # ------------------------------------------------------------------
-def simulate_escheme(gd: list, sse: list, i: int) -> dict:
-    """E方案:止损=上证120日低点(锚定入场时);止盈=成本×1.135卖1/3、
-    ×1.231卖剩余的1/2,余仓持有至252交易日。"""
+def simulate_escheme(gd: list, sse: list, i: int, rules: dict = None) -> dict:
+    """E方案:止损=上证120日低点(锚定入场时);止盈=成本×tp1卖1/3、
+    ×tp2卖剩余的1/2,余仓持有至252交易日。"""
+    rg = (rules or RULES)["games"]
     gc = [c for _, c in gd]
     sc = [c for _, c in sse]
     entry = gc[i]
     sse_low = min(sc[max(0, i - 120):i + 1])
-    tp1m = RULES["games"]["tp1_mult"]
-    tp2m = RULES["games"]["tp2_mult"]
+    tp1m = rg["tp1_mult"]
+    tp2m = rg["tp2_mult"]
     sh, cash = 1.0, 0.0
     t1 = t2 = False
     for j in range(i + 1, min(i + 253, len(gd))):
@@ -161,24 +162,27 @@ def simulate_escheme(gd: list, sse: list, i: int) -> dict:
 # ------------------------------------------------------------------
 # 锚点组合模拟
 # ------------------------------------------------------------------
-def _games_leg(gc, sc, anchor_i, mode, hh20):
+def _games_leg(gc, sc, anchor_i, mode, hh20, rules=None):
     """锚点入场后的进攻仓推演(金额口径)。
 
-    主仓 main_shares 股@锚点价;加仓资金池=等值股数按锚点价折算;
+    主仓 main_shares 股@锚点价;加仓资金池=回踩档+突破档股数按锚点价折算;
     mode: N=不加仓 A=回踩 B=突破 C=立即 D=混合(回踩+突破两段)。
     """
+    rg = (rules or RULES)["games"]
     P0 = gc[anchor_i]
     main_sh = float(BT["main_shares"])
+    dip_sh = float(rg["adds"][0]["shares"])
+    break_sh = float(rg["adds"][1]["shares"])
     pf = BT["portfolio"]
-    pool = main_sh * P0  # 加仓预算(等值一股数×锚点价)
+    pool = (dip_sh + break_sh) * P0  # 加仓预算
     start_val = pf["dividend_value"] + main_sh * P0 + pool + pf["cash_value"]
     shares = main_sh
     invested = main_sh * P0
     cash = 0.0
     t1 = t2 = False
     dip_done = break_done = False
-    dip_budget = BT["dip_shares"] * P0  # 混合方案回踩档资金
-    tp1m, tp2m = RULES["games"]["tp1_mult"], RULES["games"]["tp2_mult"]
+    dip_budget = dip_sh * P0  # 混合方案回踩档资金
+    tp1m, tp2m = rg["tp1_mult"], rg["tp2_mult"]
     sse_stop_line = min(sc[max(0, anchor_i - 120):anchor_i + 1])
     end_i = min(anchor_i + 252, len(gc) - 1)
 
@@ -226,7 +230,7 @@ def _anchor_index(gd: list, anchor_ym: str):
     return idx
 
 
-def simulate_portfolio(gd, sse, div_monthlies, anchor_ym, mode, hh20):
+def simulate_portfolio(gd, sse, div_monthlies, anchor_ym, mode, hh20, rules=None):
     """锚点组合:红利买入持有 + 进攻仓(mode) + 现金。返回组合收益率。"""
     anchor_i = _anchor_index(gd, anchor_ym)
     if anchor_i is None or anchor_i + 252 >= len(gd):
@@ -242,7 +246,7 @@ def simulate_portfolio(gd, sse, div_monthlies, anchor_ym, mode, hh20):
     r_div = div[end_ym] / div[anchor_ym] - 1
     gc = [c for _, c in gd]
     sc = [c for _, c in sse]
-    leg = _games_leg(gc, sc, anchor_i, mode, hh20)
+    leg = _games_leg(gc, sc, anchor_i, mode, hh20, rules)
     end_val = (BT["portfolio"]["dividend_value"] * (1 + r_div) + leg["final"]
                + BT["portfolio"]["cash_value"] * (1 + BT["cash_yield"]))
     return end_val / leg["start"] - 1
@@ -265,9 +269,9 @@ def _align(base: list, other: list) -> list:
     return out
 
 
-def compute_stats(gd, sse, div_monthlies, hs_monthlies, gam_monthlies) -> dict:
+def compute_stats(gd, sse, div_monthlies, hs_monthlies, gam_monthlies, rules=None) -> dict:
     """全部回测统计。gd/sse: 日线 [[date, close], ...];其余: 月线。
-    sse 会先按 gd 的日期对齐(前向填充)。"""
+    sse 会先按 gd 的日期对齐(前向填充)。rules: 可选规则覆盖(默认config.RULES)。"""
     from .channel import channel_rows
     sse = _align(gd, sse)
     gc = [c for _, c in gd]
@@ -289,7 +293,7 @@ def compute_stats(gd, sse, div_monthlies, hs_monthlies, gam_monthlies) -> dict:
              "D": "D · 混合:回踩+突破(采用)"}
     mode_rets = {}
     for m in modes:
-        rets = [simulate_portfolio(gd, sse, div_monthlies, a, m, hh20) for a in valid_anchors]
+        rets = [simulate_portfolio(gd, sse, div_monthlies, a, m, hh20, rules or RULES) for a in valid_anchors]
         mode_rets[m] = [r for r in rets if r is not None]
     mode_table = []
     for m, label in modes.items():
@@ -306,10 +310,10 @@ def compute_stats(gd, sse, div_monthlies, hs_monthlies, gam_monthlies) -> dict:
     # ---- 同构事件 ----
     evs = find_events(gd)
     hold_rets, es_rets, strict_rets, stopped_n = [], [], [], 0
-    tp1m, tp2m = RULES["games"]["tp1_mult"], RULES["games"]["tp2_mult"]
+    tp1m, tp2m = (rules or RULES)["games"]["tp1_mult"], (rules or RULES)["games"]["tp2_mult"]
     for i in evs:
         hold_rets.append(gc[min(i + 252, len(gc) - 1)] / gc[i] - 1)
-        es = simulate_escheme(gd, sse, i)
+        es = simulate_escheme(gd, sse, i, rules or RULES)
         es_rets.append(es["ret"])
         if es["stopped"]:
             stopped_n += 1

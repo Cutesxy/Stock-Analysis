@@ -7,9 +7,11 @@
 4. /api/ledger   交易流水(SQLite持久化,前端整表同步)
 5. /             前端静态文件(frontend/)
 """
+import json as _json
+from copy import deepcopy
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -17,6 +19,28 @@ from pydantic import BaseModel
 from . import storage
 from .config import RULES, SYMBOLS, POLL_SECONDS
 from .services import backtest, channel, kline, quotes
+
+RULES_FILE = Path(__file__).parent / "data" / "rules_override.json"
+
+
+def _deep_merge(base: dict, patch: dict) -> dict:
+    """只覆盖已存在键的叶子值(忽略未知键),递归dict。"""
+    for k, v in (patch or {}).items():
+        if k in base and isinstance(base[k], dict) and isinstance(v, dict):
+            _deep_merge(base[k], v)
+        elif k in base and not isinstance(base[k], dict):
+            base[k] = v
+    return base
+
+
+def _merged_rules() -> dict:
+    base = deepcopy(RULES)
+    if RULES_FILE.exists():
+        try:
+            _deep_merge(base, _json.loads(RULES_FILE.read_text(encoding="utf-8")))
+        except Exception:
+            pass
+    return base
 
 app = FastAPI(title="Stock-Analysis", description="双ETF量化作战系统(个人研究工具,不构成投资建议)")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -43,7 +67,8 @@ def _build_data(force: bool = False) -> dict:
     hs_m = channel.to_monthlies(kl["hs300"])
     ratio = channel.spot_ratio(div_qfq, div_hfq)
 
-    stats = backtest.compute_stats(gd, sse, div_m, hs_m, gam_m)
+    rules = _merged_rules()
+    stats = backtest.compute_stats(gd, sse, div_m, hs_m, gam_m, rules)
     lv_div = channel.levels(div_m)
     lv_gam = channel.levels(gam_m)
 
@@ -55,7 +80,7 @@ def _build_data(force: bool = False) -> dict:
         "dividend": {"daily": [ [d, round(c * ratio, 4)] for d, c in div_hfq[-500:] ],
                      "monthlies": div_m, "levels": lv_div},
         "sse": {"daily": sse[-500:]},
-        "rules": RULES,
+        "rules": rules,
         "stats": stats,
         "poll_seconds": POLL_SECONDS,
     }
@@ -119,6 +144,45 @@ def api_ledger_put(body: LedgerRows):
 @app.post("/api/ledger/demo")
 def api_ledger_demo():
     return {"ok": True, "count": storage.seed_demo()}
+
+
+@app.get("/api/rules")
+def api_rules_get():
+    return _merged_rules()
+
+
+@app.put("/api/rules")
+async def api_rules_put(payload: dict = Body(...)):
+    """保存规则覆盖(只接受已存在键的数值/字符串叶子)。"""
+    patch = payload.get("rules", payload)
+    # 白名单校验:止盈倍率/价格合理区间
+    base = deepcopy(RULES)
+    merged = _deep_merge(base, deepcopy(patch))
+    g = merged["games"]
+    if not (1.0 < g["tp1_mult"] < 3.0 and 1.0 < g["tp2_mult"] < 3.0):
+        raise HTTPException(422, "止盈倍率应在1.0~3.0之间")
+    if g["tp2_mult"] <= g["tp1_mult"]:
+        raise HTTPException(422, "止盈②倍率应大于止盈①")
+    for a in g["adds"]:
+        if not (0 < a["price"] < 100 and 0 < a["shares"] < 100000):
+            raise HTTPException(422, "加仓价格/股数超出合理范围")
+    if not (0 < g["sse_stop"] < 100000):
+        raise HTTPException(422, "止损线超出合理范围")
+    try:
+        RULES_FILE.parent.mkdir(exist_ok=True)
+        RULES_FILE.write_text(_json.dumps(merged, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        raise HTTPException(500, f"写入失败: {e}")
+    _state.pop("data", None)  # 失效缓存,下次请求用新规则重算
+    return _merged_rules()
+
+
+@app.delete("/api/rules")
+def api_rules_reset():
+    if RULES_FILE.exists():
+        RULES_FILE.unlink()
+    _state.pop("data", None)
+    return _merged_rules()
 
 
 # ------------------------------------------------------------------

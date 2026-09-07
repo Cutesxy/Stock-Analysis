@@ -12,10 +12,16 @@ export const api = {
   quotes: () => req('/api/quotes'),
   data: () => req('/api/data'),
   stats: () => req('/api/stats'),
+  statsRefresh: () => req('/api/stats?refresh=1'),   // 强制重抓K线+重算回测
   ledger: () => req('/api/ledger'),
   saveLedger: rows => req('/api/ledger', {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ rows }),
   }),
   seedDemo: () => req('/api/ledger/demo', { method: 'POST' }),
+  saveRules: rules => req('/api/rules', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rules }),
+  }),
+  resetRules: () => req('/api/rules', { method: 'DELETE' }),
 };
