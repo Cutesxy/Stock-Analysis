@@ -21,21 +21,21 @@ _disk_ok = None # 缓存文件是否可用
 
 
 def _fetch_page(sym: str, fq: str, end: str, n: int) -> list:
-    """抓一页K线,end为空表示从最新开始。返回 [[date, close], ...]"""
+    """抓一页K线,end为空表示从最新开始。返回 [[date,o,h,l,c,vol], ...]"""
     param = f"{sym},day,,{end},{n},{fq}" if end else f"{sym},day,,,{n},{fq}"
     r = cr.get(BASE, params={"param": param}, impersonate="chrome", timeout=15)
     j = r.json()
     data = j["data"][sym]
     # 响应键名是 {fq}day(qfqday/hfqday),不复权时是 day
     k = data.get(f"{fq}day") or data.get("day") or []
-    return [[row[0], float(row[2])] for row in k]
+    return [[r[0], float(r[1]), float(r[3]), float(r[4]), float(r[2]), float(r[5])] for r in k]
 
 
 def fetch_kline(sym: str, fq: str = "", paged: bool = False, target: int = 640) -> list:
-    """抓取K线(收盘价)。
+    """抓取K线(完整OHLCV)。
 
     paged=True 时向后翻页直至取满 target 根(用于需要完整历史的通道计算);
-    始终剔除今天的数据(未复权问题),返回按日期升序的 [[date, close], ...]。
+    始终剔除今天的数据(未复权问题),返回按日期升序的 [[date,o,h,l,c,vol], ...]。
     """
     rows = _fetch_page(sym, fq, "", 640)
     if paged:
@@ -59,6 +59,11 @@ def fetch_kline(sym: str, fq: str = "", paged: bool = False, target: int = 640) 
     return uniq
 
 
+def closes(rows: list) -> list:
+    """[[date,o,h,l,c,v],...] → [[date, close], ...](旧口径,供通道/回测)"""
+    return [[r[0], r[4]] for r in rows]
+
+
 def get_klines(symbols: dict, full: bool = False) -> dict:
     """批量获取并缓存。symbols: {key: {code, fq, paged}}, full=True 时取全量历史。"""
     global _disk_ok
@@ -67,6 +72,8 @@ def get_klines(symbols: dict, full: bool = False) -> dict:
         if CACHE_FILE.exists():
             try:
                 _disk_ok = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
+                # 旧缓存格式([date,close]两字段)兼容:剔除,避免混入OHLC管线
+                _disk_ok = {k: v for k, v in _disk_ok.items() if not v or len(v[0]) == 6}
             except Exception:
                 _disk_ok = {}
     out, changed, now = {}, False, time.time()

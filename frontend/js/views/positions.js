@@ -64,18 +64,23 @@ export function renderPositions(root) {
       <div class="btns"><button onclick="openTradeModal({etf:'cash',act:'入金'})">＋ 记一笔入金</button>
       <button class="ghost" onclick="loadDemoFlow()">载入演示数据</button></div></div>`;
   }
-  // 持仓卡
+  // 持仓卡(带快捷操作)
+  const posCard = (name, key, val, sh, cost, px) => `
+    <div class="pf-item"><div class="t"><span>${name}</span>
+      <span class="qbtns">
+        <button class="buy" onclick="openTradeModal({etf:'${key}',act:'买入'})">买</button>
+        <button class="sell" onclick="openTradeModal({etf:'${key}',act:'卖出'})">卖</button>
+        <button class="ghost" onclick="openTradeModal({etf:'${key}',act:'分红'})">息</button></span></div>
+    <div class="v">${fmt.money(val)}</div>
+    <div class="mini">${sh}股@${cost.toFixed(4)} · 浮盈 ${sh ? pl((px - cost) * sh, (px / cost - 1) * 100) : '—'}</div></div>`;
   html += `<div class="pf-grid">` +
-    `<div class="pf-item"><div class="t">${D.symbols.dividend.name} · 压舱仓<button class="sm ghost" onclick="openTradeModal({etf:'dividend',act:'买入'})">＋</button></div>
-    <div class="v">${fmt.money(dVal)}</div>
-    <div class="mini">${L.dividend.sh}股 · 加权成本${L.dividend.cost.toFixed(4)}<br>浮盈 ${L.dividend.sh ? pl((h - L.dividend.cost) * L.dividend.sh, (h / L.dividend.cost - 1) * 100) : '—'}</div></div>` +
-    `<div class="pf-item"><div class="t">${D.symbols.games.name} · 进攻仓<button class="sm ghost" onclick="openTradeModal({etf:'games',act:'买入'})">＋</button></div>
-    <div class="v">${fmt.money(gVal)}</div>
-    <div class="mini">${L.games.sh}股 · 加权成本${L.games.cost.toFixed(4)}<br>浮盈 ${L.games.sh ? pl((g - L.games.cost) * L.games.sh, (g / L.games.cost - 1) * 100) : '—'}</div></div>` +
-    `<div class="pf-item"><div class="t">现金<button class="sm ghost" onclick="openTradeModal({etf:'cash',act:'入金'})">＋</button></div>
+    posCard(D.symbols.dividend.name, 'dividend', dVal, L.dividend.sh, L.dividend.cost, h) +
+    posCard(D.symbols.games.name, 'games', gVal, L.games.sh, L.games.cost, g) +
+    `<div class="pf-item"><div class="t"><span>现金</span>
+      <span class="qbtns"><button class="ghost" onclick="openTradeModal({etf:'cash',act:'入金'})">入金</button></span></div>
     <div class="v">${fmt.money(L.cash)}</div>
     <div class="mini">已实现盈亏 ${L.realized >= 0 ? '+' : ''}${L.realized.toFixed(0)}元</div></div>` +
-    `<div class="pf-item"><div class="t">总资产</div><div class="v">${fmt.money(tot)}</div>
+    `<div class="pf-item"><div class="t"><span>总资产</span></div><div class="v">${fmt.money(tot)}</div>
     <div class="mini">${tot > 0 ? `压舱${(dVal / tot * 100).toFixed(0)}% / 进攻${(gVal / tot * 100).toFixed(0)}% / 现金${(L.cash / tot * 100).toFixed(0)}%` : '记入流水后显示'}<br>推荐:压舱${(rw.dividend * 100).toFixed(0)}%/进攻${(rw.games * 100).toFixed(0)}%/现金${(rw.cash * 100).toFixed(0)}%</div></div></div>`;
 
   // 配置对比条
@@ -118,7 +123,9 @@ export function renderPositions(root) {
   const rev = [...s.ledger].reverse();
   if (!rev.length) html += `<tr><td colspan="8" class="mini">空</td></tr>`;
   for (const r of rev) {
-    html += `<tr><td>${r.date}</td><td>${names[r.etf] || r.etf}</td><td>${r.act}</td>
+    const chipCls = r.act === '买入' ? 'buy' : (r.act === '卖出' ? 'sell' : (r.act === '分红' ? 'div' : 'cash'));
+    html += `<tr><td>${r.date}</td><td>${names[r.etf] || r.etf}</td>
+      <td><span class="chip ${chipCls}">${r.act}</span></td>
       <td>${r.act === '入金' ? '—' : r.price}</td><td>${r.shares}</td><td>${r.fee || 0}</td>
       <td class="mini">${r.note || ''}</td>
       <td><span class="del" style="color:#64748b;cursor:pointer" onclick="delLedgerFlow('${r.id}')">✕</span></td></tr>`;

@@ -40,13 +40,24 @@ export function renderQuant(root) {
     <td class="up">${fmt.pct((m[2] || 0) * 100, 1)}</td><td class="${(m[3] || 0) < 0 ? 'down' : 'flat'}">${fmt.pct((m[3] || 0) * 100, 1)}</td></tr>`).join('');
 
   root.innerHTML = `
-  <div class="panel"><h2>胜率与期望 · 三层体系 <span class="mini">(不构成投资建议)</span></h2>
-  <div class="big">
-    <div class="kv"><div class="k">系统胜率(${st.n}锚点·当前规则)</div><div class="v">${(st.win * 100).toFixed(0)}%</div></div>
-    <div class="kv"><div class="k">95%CI</div><div class="v" style="font-size:15px">[${(st.ci[0] * 100).toFixed(0)}%~${(st.ci[1] * 100).toFixed(0)}%]</div></div>
-    <div class="kv"><div class="k">12月平均</div><div class="v up">${fmt.pct(st.avg * 100, 1)}</div></div>
-    <div class="kv"><div class="k">最差锚点</div><div class="v down">${fmt.pct(st.worst * 100, 1)}</div></div>
-    <div class="kv"><div class="k">中段/尾段</div><div class="v" style="font-size:15px">${fmt.pct(st.mid * 100, 1)} / ${fmt.pct(st.late * 100, 1)}</div></div></div>
+  <div class="quotes" style="grid-template-columns:repeat(5,1fr)">
+    <div class="qcard" style="cursor:default"><div class="qmeta">系统胜率 · ${st.n}锚点</div>
+      <div class="qrow"><span class="qprice">${(st.win * 100).toFixed(0)}<span style="font-size:13px">%</span></span></div>
+      <div class="mini">95%CI [${(st.ci[0] * 100).toFixed(0)}~${(st.ci[1] * 100).toFixed(0)}%]</div></div>
+    <div class="qcard" style="cursor:default"><div class="qmeta">12月平均收益</div>
+      <div class="qrow"><span class="qprice ${st.avg >= 0 ? 'up' : 'down'}">${fmt.pct(st.avg * 100, 1)}</span></div>
+      <div class="mini">规则化持有·不择时预测</div></div>
+    <div class="qcard" style="cursor:default"><div class="qmeta">最差锚点</div>
+      <div class="qrow"><span class="qprice ${st.worst >= 0 ? 'up' : 'down'}">${fmt.pct(st.worst * 100, 1)}</span></div>
+      <div class="mini">历史上最坏一次</div></div>
+    <div class="qcard" style="cursor:default"><div class="qmeta">中段重演</div>
+      <div class="qrow"><span class="qprice ${st.mid >= 0 ? 'up' : 'down'}">${fmt.pct(st.mid * 100, 1)}</span></div>
+      <div class="mini">熊市继续磨底情境</div></div>
+    <div class="qcard" style="cursor:default"><div class="qmeta">修复兑现</div>
+      <div class="qrow"><span class="qprice ${st.late >= 0 ? 'up' : 'down'}">${fmt.pct(st.late * 100, 1)}</span></div>
+      <div class="mini">剧本兑现情境</div></div>
+  </div>
+  <div class="panel"><h2>资产层与情境模拟 <span class="mini">(不构成投资建议)</span></h2>
 
   <div class="grid2"><div>
     <div class="lbl">资产层 · 随行情实时查表</div>
@@ -91,12 +102,11 @@ export function renderQuant(root) {
     <div class="mini">其中${ce.fail_n}次曾跌回突破价下方——最终仍${((ce.fail_win || 0) * 100).toFixed(0)}%胜:突破失败≠剧本失败(止损只认指数证伪线)</div>
     <div class="mini">但追涨者要坐过山车:12月内中位回踩<b class="down">${((ce.dip_med || 0) * 100).toFixed(0)}%</b>·最深<b class="down">${((ce.dip_worst || 0) * 100).toFixed(0)}%</b></div>
   </div><div>
-    <div style="padding:8px 10px;background:#07231b;border-radius:8px;font-size:12.5px">
-    <b>结论:可以追,但要"确认后追"</b><br>
-    ① 追涨比死等回踩期望更高,胜率不变——追涨不降低系统质量;<br>
+    <details><summary>结论:可以追,但要"确认后追" —— 展开看4条</summary>
+    <div class="mini">① 追涨比死等回踩期望更高,胜率不变——追涨不降低系统质量;<br>
     ② 采用两段式:回踩档 + 周收盘确认后追涨档,孰先到孰成交;<br>
     ③ 不追"中间态"(既没回踩也没突破的位置)——既无折价也无确认;<br>
-    ④ 追进去后要有坐${((ce.dip_med || 0) * 100).toFixed(0)}%回撤的觉悟,止损线依然只认指数证伪线。</div>
+    ④ 追进去后要有坐${((ce.dip_med || 0) * 100).toFixed(0)}%回撤的觉悟,止损线依然只认指数证伪线。</div></details>
   </div></div></div>`;
 }
 window.setP = v => { store.set({ p: v }); localStorage.setItem('sa_p_repair', v); };

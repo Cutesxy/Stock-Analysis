@@ -60,11 +60,12 @@ def _build_data(force: bool = False) -> dict:
         "hs300": SYMBOLS["hs300"],
     }, full=True)
 
-    gd, sse = kl["games"], kl["sse"]
-    div_hfq, div_qfq = kl["dividend"], kl["dividend_qfq"]
+    # K线现在是 [date,o,h,l,c,vol];计算用closes()旧口径,图表用OHLC
+    gd, sse = kline.closes(kl["games"]), kline.closes(kl["sse"])
+    div_hfq, div_qfq = kline.closes(kl["dividend"]), kline.closes(kl["dividend_qfq"])
     gam_m = channel.to_monthlies(gd)
     div_m = channel.to_monthlies(div_hfq)
-    hs_m = channel.to_monthlies(kl["hs300"])
+    hs_m = channel.to_monthlies(kline.closes(kl["hs300"]))
     ratio = channel.spot_ratio(div_qfq, div_hfq)
 
     rules = _merged_rules()
@@ -76,10 +77,11 @@ def _build_data(force: bool = False) -> dict:
         "updated": gd[-1][0] if gd else "",
         "ratio": ratio,
         "symbols": {k: {"code": v["code"], "name": v["name"]} for k, v in SYMBOLS.items() if k != "hs300"},
-        "games": {"daily": gd[-500:], "monthlies": gam_m, "levels": lv_gam},
+        "games": {"daily": gd[-500:], "ohlc": kl["games"][-500:], "monthlies": gam_m, "levels": lv_gam},
         "dividend": {"daily": [ [d, round(c * ratio, 4)] for d, c in div_hfq[-500:] ],
+                     "ohlc": [ [r[0], r[1], round(r[2]*ratio,4), round(r[3]*ratio,4), round(r[4]*ratio,4), r[5]] for r in kl["dividend"][-500:] ],
                      "monthlies": div_m, "levels": lv_div},
-        "sse": {"daily": sse[-500:]},
+        "sse": {"daily": sse[-500:], "ohlc": kl["sse"][-500:]},
         "rules": rules,
         "stats": stats,
         "poll_seconds": POLL_SECONDS,
