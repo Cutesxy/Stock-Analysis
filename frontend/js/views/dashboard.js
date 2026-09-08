@@ -1,6 +1,6 @@
 // 概览:报价条 → 建议横幅 → 大图表(Tab切换) + 操作面板 → 待办
 import { store } from '../store.js';
-import { drawChart, drawSpark } from '../charts.js';
+import { drawChart, drawIntraday, drawSpark } from '../charts.js';
 import { actRow, sigmaGauge, toast, openTradeModal } from '../ui.js';
 import { ledger } from '../ledger.js';
 import { api } from '../api.js';
@@ -9,6 +9,7 @@ import { fmt } from '../config.js';
 const $ = id => document.getElementById(id);
 let chartSym = localStorage.getItem('sa_chart_sym') || 'games';
 let chartDays = +(localStorage.getItem('sa_chart_days') || 500);
+let chartMode = localStorage.getItem('sa_chart_mode') || 'daily';
 const SYMS = ['dividend', 'games', 'sse'];
 if (!SYMS.includes(chartSym)) chartSym = 'games';
 window.setChartSym = k => {
@@ -21,6 +22,24 @@ window.setChartDays = d => {
   localStorage.setItem('sa_chart_days', d);
   store.notify();
 };
+window.setChartMode = m => {
+  chartMode = m;
+  localStorage.setItem('sa_chart_mode', m);
+  store.notify();
+};
+let _fetchingIntraday = false;
+async function ensureIntraday(sym) {
+  const s = store.state;
+  if (_fetchingIntraday) return;
+  const cur = s.intraday;
+  if (cur && cur.key === sym && Date.now() - cur.ts < 25000) return;
+  _fetchingIntraday = true;
+  try {
+    const data = await api.intraday(sym);
+    store.set({ intraday: { key: sym, ts: Date.now(), data } });
+  } catch (e) { /* 离线忽略 */ }
+  _fetchingIntraday = false;
+}
 
 export function renderDashboard(root) {
   const s = store.state;
@@ -94,8 +113,10 @@ export function renderDashboard(root) {
       <div class="ctabs">
         ${SYMS.map(k => `<button class="${chartSym === k ? 'on' : ''}" onclick="setChartSym('${k}')">${symNames[k]}</button>`).join('')}
         <span class="sp"></span>
-        <button class="rbtn ${chartDays === 250 ? 'on' : ''}" onclick="setChartDays(250)">1年</button>
-        <button class="rbtn ${chartDays === 500 ? 'on' : ''}" onclick="setChartDays(500)">2年</button>
+        <button class="rbtn ${chartMode === 'intraday' ? 'on' : ''}" onclick="setChartMode('intraday')">分时</button>
+        <button class="rbtn ${chartMode === 'daily' ? 'on' : ''}" onclick="setChartMode('daily')">日K</button>
+        ${chartMode === 'daily' ? `<button class="rbtn ${chartDays === 250 ? 'on' : ''}" onclick="setChartDays(250)">1年</button>
+        <button class="rbtn ${chartDays === 500 ? 'on' : ''}" onclick="setChartDays(500)">2年</button>` : ''}
       </div>
       <div class="chartwrap"><div class="ct chartbox" id="ch-main"></div></div>
     </div>
@@ -221,8 +242,18 @@ export function renderDashboard(root) {
   };
   const el = document.getElementById('ch-main');
   if (el) {
-    const cfg = chartCfg[chartSym]();
-    drawChart('ch-main', Object.assign({ height: 520 }, cfg));
+    if (chartMode === 'intraday') {
+      ensureIntraday(chartSym);
+      const it = store.state.intraday;
+      if (it && it.key === chartSym && it.data && it.data.points && it.data.points.length) {
+        drawIntraday('ch-main', { points: it.data.points, prev: it.data.prev, date: it.data.date, height: 520, yfmt: chartSym === 'sse' ? (v => v.toFixed(0)) : undefined });
+      } else {
+        el.innerHTML = '<div style="padding:80px 20px;color:#7a8494;text-align:center;font-size:13px">分时数据加载中…(开市后逐分钟滚动)</div>';
+      }
+    } else {
+      const cfg = chartCfg[chartSym]();
+      drawChart('ch-main', Object.assign({ height: 520 }, cfg));
+    }
   }
 }
 

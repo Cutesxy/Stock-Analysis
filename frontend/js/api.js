@@ -10,6 +10,7 @@ async function req(path, opts) {
 }
 export const api = {
   quotes: () => req('/api/quotes'),
+  intraday: key => req(`/api/intraday?sym=${key}`),
   data: () => req('/api/data'),
   stats: () => req('/api/stats'),
   statsRefresh: () => req('/api/stats?refresh=1'),   // 强制重抓K线+重算回测

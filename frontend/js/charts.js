@@ -221,3 +221,107 @@ export function drawCurve(containerId, o) {
   });
   svg.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
 }
+
+// 分时图:价格线+均价线(VWAP)+昨收基准+量(经典A股分时)
+export function drawIntraday(containerId, o) {
+  const el = document.getElementById(containerId);
+  const W = Math.max(el.clientWidth || 920, 620);
+  const H = o.height || 520;
+  const M = { l: 10, r: 64, t: 16, b: 46 };
+  const VH = 64;
+  const pts = o.points || [];
+  if (!pts.length) { el.innerHTML = '<div style="padding:60px;color:#7a8494;text-align:center">暂无分时数据(未开市或数据未生成)</div>'; return; }
+  const prev = o.prev != null ? o.prev : pts[0][1];
+  // 分钟槽位:上午09:30-11:30(0-120),下午13:00-15:00(121-241)
+  const slot = hm => {
+    const h = +hm.slice(0, 2), m = +hm.slice(2, 4);
+    if (h < 12) return Math.max(0, (h - 9) * 60 + m - 30);
+    return 121 + (h - 13) * 60 + m;
+  };
+  const SLOTS = 242;
+  const vy0 = H - M.b;
+  // VWAP
+  const vwap = [];
+  let pv = 0, vv = 0, lastCum = 0;
+  const vols = [];
+  for (const [, p, cum] of pts) {
+    const v = Math.max(cum - lastCum, 0); lastCum = cum;
+    vols.push(v); pv += p * v; vv += v;
+    vwap.push(vv > 0 ? pv / vv : p);
+  }
+  const prices = pts.map(r => r[1]);
+  const all = prices.concat(vwap, [prev]);
+  let ymin = Math.min(...all), ymax = Math.max(...all);
+  const pad = (ymax - ymin) * 0.08 || 0.002; ymin -= pad; ymax += pad;
+  const PH = H - M.t - M.b - VH - 8;
+  const X = i => M.l + (slot(pts[i][0]) / SLOTS) * (W - M.l - M.r);
+  const Y = v => M.t + (ymax - v) / (ymax - ymin) * PH;
+  const vmax = Math.max(...vols, 1);
+  const VY = v => vy0 - v / vmax * VH;
+  const yfmt = o.yfmt || (v => v.toFixed(3));
+  const up = prices[prices.length - 1] >= prev;
+
+  let s = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="background:${CHART_BG};border-radius:11px">`;
+  // 网格:横5条+竖4条(9:30/10:30/11:30-13:00/14:00/15:00)
+  for (let i = 0; i <= 4; i++) {
+    const v = ymin + (ymax - ymin) * i / 4, y = Y(v);
+    s += `<line x1="${M.l}" y1="${y}" x2="${W - M.r}" y2="${y}" stroke="${C.grid}"/>`
+      + `<text x="${W - M.r + 7}" y="${y + 4}" fill="${C.txt}" font-size="11.5" font-family="Menlo,monospace">${yfmt(v)}</text>`;
+  }
+  const xticks = [['0930', 0], ['1030', 60], ['1130/1300', 120], ['1400', 181], ['1500', SLOTS]];
+  for (const [lab, sl] of xticks.slice(0, -1)) {
+    const x = M.l + sl / SLOTS * (W - M.l - M.r);
+    s += `<line x1="${x}" y1="${M.t}" x2="${x}" y2="${vy0}" stroke="${C.grid}" stroke-dasharray="2 4"/>`
+      + `<text x="${x}" y="${H - 10}" fill="${C.txt}" font-size="11" text-anchor="middle">${lab}</text>`;
+  }
+  const xe = M.l + (W - M.l - M.r);
+  s += `<text x="${xe}" y="${H - 10}" fill="${C.txt}" font-size="11" text-anchor="end">15:00</text>`;
+  s += `<line x1="${M.l}" y1="${vy0 - VH - 6}" x2="${W - M.r}" y2="${vy0 - VH - 6}" stroke="${C.grid}"/>`;
+  // 昨收基准线
+  s += `<line x1="${M.l}" y1="${Y(prev)}" x2="${W - M.r}" y2="${Y(prev)}" stroke="#98a2b3" stroke-width="1" stroke-dasharray="6 4"/>`;
+  // 量柱(涨红跌绿)
+  for (let i = 0; i < pts.length; i++) {
+    const x = X(i);
+    const col = i > 0 ? (pts[i][1] >= pts[i - 1][1] ? C.up : C.down) : C.up;
+    const v = vols[i];
+    if (v > 0) s += `<rect x="${x - 1}" y="${VY(v)}" width="2" height="${vy0 - VY(v)}" fill="${col}" opacity=".22"/>`;
+  }
+  // 均价线(VWAP)
+  s += `<polyline points="${vwap.map((v, i) => X(i) + ',' + Y(v)).join(' ')}" fill="none" stroke="#d97706" stroke-width="1.2" opacity=".9"/>`;
+  // 价格线
+  s += `<polyline points="${prices.map((v, i) => X(i) + ',' + Y(v)).join(' ')}" fill="none" stroke="${C.accent}" stroke-width="1.6"/>`;
+  // 现价点+右侧气泡
+  const li = pts.length - 1;
+  const col = up ? C.up : C.down;
+  s += `<circle cx="${X(li)}" cy="${Y(prices[li])}" r="3.4" fill="#fff" stroke="${col}" stroke-width="2"><animate attributeName="r" values="3.4;5.2;3.4" dur="2s" repeatCount="indefinite"/></circle>`;
+  const by = Math.max(M.t + 10, Math.min(Y(prices[li]), vy0 - VH - 12));
+  const bw2 = (yfmt(prices[li]) + '').length * 7.5 + 12;
+  s += `<rect x="${W - M.r + 2}" y="${by - 9}" width="${bw2}" height="18" rx="4" fill="${col}"/>`
+    + `<text x="${W - M.r + 8}" y="${by + 4.5}" fill="#fff" font-size="11.5" font-weight="700" font-family="Menlo,monospace">${yfmt(prices[li])}</text>`;
+  s += `<line id="${containerId}-cross" x1="0" x2="0" y1="${M.t}" y2="${vy0}" stroke="${C.cross}" stroke-width="1" visibility="hidden"/>`;
+  s += `</svg>`;
+  // 图例
+  const lg = [[C.accent, '价格'], ['#d97706', '均价线'], ['#98a2b3', `昨收 ${yfmt(prev)}`]];
+  if (o.date) lg.push(['#b3bdc9', o.date.slice(4, 6) + '-' + o.date.slice(6, 8) + ' 分时']);
+  const legend = `<div class="clegend">${lg.map(([c, t2]) => `<span class="li"><i style="background:${c}"></i>${t2}</span>`).join('')}</div>`;
+  el.innerHTML = s + legend + `<div class="tip"></div>`;
+  // 悬停
+  const svg = el.querySelector('svg'), tip = el.querySelector('.tip'), cross = el.querySelector('#' + containerId + '-cross');
+  svg.addEventListener('mousemove', e => {
+    const r = svg.getBoundingClientRect();
+    const vx = (e.clientX - r.left) * (W / r.width);
+    if (vx < M.l || vx > W - M.r) { tip.style.display = 'none'; cross.setAttribute('visibility', 'hidden'); return; }
+    const sl = (vx - M.l) / (W - M.l - M.r) * SLOTS;
+    let best = 0, bd = 1e9;
+    for (let i = 0; i < pts.length; i++) { const d = Math.abs(slot(pts[i][0]) - sl); if (d < bd) { bd = d; best = i; } }
+    cross.setAttribute('x1', X(best)); cross.setAttribute('x2', X(best)); cross.setAttribute('visibility', 'visible');
+    const p = pts[best][1], chg = (p / prev - 1) * 100;
+    tip.style.display = 'block';
+    tip.innerHTML = `<b>${pts[best][0].slice(0, 2)}:${pts[best][0].slice(2, 4)}</b> · <b>${yfmt(p)}</b> `
+      + `<span style="color:${chg >= 0 ? C.up : C.down}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span><br>`
+      + `量 ${(vols[best] / 1e4).toFixed(1)}万手`;
+    tip.style.left = Math.min(Math.max(e.clientX - r.left + 14, 0), r.width - 185) + 'px';
+    tip.style.top = (e.clientY - r.top - 36) + 'px';
+  });
+  svg.addEventListener('mouseleave', () => { tip.style.display = 'none'; cross.setAttribute('visibility', 'hidden'); });
+}

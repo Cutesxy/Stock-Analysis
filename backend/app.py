@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from . import storage
 from .config import RULES, SYMBOLS, POLL_SECONDS
-from .services import backtest, channel, kline, quotes
+from .services import backtest, channel, intraday, kline, quotes
 
 RULES_FILE = Path(__file__).parent / "data" / "rules_override.json"
 
@@ -146,6 +146,17 @@ def api_ledger_put(body: LedgerRows):
 @app.post("/api/ledger/demo")
 def api_ledger_demo():
     return {"ok": True, "count": storage.seed_demo()}
+
+
+@app.get("/api/intraday")
+def api_intraday(sym: str):
+    """当日分时(分钟价+累计量+昨收),缓存20秒。"""
+    if sym not in SYMBOLS:
+        raise HTTPException(404, f"未知标的 {sym}")
+    try:
+        return intraday.get_minute(SYMBOLS[sym]["code"])
+    except Exception as e:
+        raise HTTPException(502, f"分时获取失败: {e}")
 
 
 @app.get("/api/rules")
