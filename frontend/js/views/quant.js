@@ -31,12 +31,12 @@ export function renderQuant(root) {
   const ev = st.mid + (st.late - st.mid) * P / 100;
 
   const zones = D.stats.dividend_zones.map(z =>
-    `<tr${z === zD ? ' style="background:#4c7dff1f"' : ''}><td>${z[0]}</td><td>${((z[1] || 0) * 100).toFixed(0)}%</td><td>${fmt.pct((z[2] || 0) * 100, 1)}</td><td>${z[3]}</td></tr>`).join('');
+    `<tr${z === zD ? ' style="background:#1666dc14"' : ''}><td>${z[0]}</td><td>${((z[1] || 0) * 100).toFixed(0)}%</td><td>${fmt.pct((z[2] || 0) * 100, 1)}</td><td>${z[3]}</td></tr>`).join('');
   const gz = D.stats.games_zones.map(z =>
     `<tr><td>${z[0]}</td><td>${((z[1] || 0) * 100).toFixed(0)}%</td><td>${fmt.pct((z[2] || 0) * 100, 1)}</td><td>${z[3]}</td></tr>`).join('');
   const modeRows = D.stats.mode_table;
   const mt = modeRows.map((m, i) =>
-    `<tr${i === modeRows.length - 1 ? ' style="background:#2ebd8514"' : ''}><td>${m[0]}</td><td>${((m[1] || 0) * 100).toFixed(0)}%</td>
+    `<tr${i === modeRows.length - 1 ? ' style="background:#0a996914"' : ''}><td>${m[0]}</td><td>${((m[1] || 0) * 100).toFixed(0)}%</td>
     <td class="up">${fmt.pct((m[2] || 0) * 100, 1)}</td><td class="${(m[3] || 0) < 0 ? 'down' : 'flat'}">${fmt.pct((m[3] || 0) * 100, 1)}</td></tr>`).join('');
 
   root.innerHTML = `

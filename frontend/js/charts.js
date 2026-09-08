@@ -1,21 +1,20 @@
-// 图表引擎:蜡烛图+成交量+通道带+作战位(TradingView式)
-const C = { up: '#f6465d', down: '#2ebd85', grid: '#1d2637', txt: '#8b94a8', cross: '#454f63' };
-const CHART_BG = '#0f131c';
+// 图表引擎:蜡烛+成交量+通道+作战位(浅色行情风·图例条版)
+const C = { up: '#e02e44', down: '#0a9969', grid: '#e8edf4', txt: '#7a8494', cross: '#b6bfcc', accent: '#1666dc' };
+const CHART_BG = '#ffffff';
 
 export function drawChart(containerId, o) {
   const el = document.getElementById(containerId);
   const W = Math.max(el.clientWidth || 920, 620);
-  const H = o.height || 430;
-  const M = { l: 8, r: 162, t: 28, b: 54 };   // b含成交量区
-  const VH = 64;                                // 成交量区高
+  const H = o.height || 520;
+  const M = { l: 10, r: 64, t: 16, b: 56 };
+  const VH = 58;
   const today = new Date().toISOString().slice(0, 10);
-  // 数据:优先OHLC,退化用收盘线
   const useCandle = !!(o.ohlc && o.ohlc.length);
   const rows = useCandle ? o.ohlc.slice() : o.daily.slice();
-  const cidx = useCandle ? 4 : 1;  // 收盘位置
+  const cidx = useCandle ? 4 : 1;
   if (o.live != null && rows[rows.length - 1][0] !== today) {
     const p = rows[rows.length - 1], q = p.slice();
-    if (useCandle) { q[1] = q[4] = o.live; q[2] = Math.max(q[2], o.live); q[3] = Math.min(q[3], o.live); }
+    if (useCandle) { q[1] = q[4] = o.live; q[2] = Math.max(q[2], o.live); q[3] = Math.min(q[3], o.live); q[5] = 0; }
     else q[1] = o.live;
     q[0] = today; rows.push(q);
   }
@@ -23,14 +22,12 @@ export function drawChart(containerId, o) {
   const n = rows.length;
   const t0 = t(rows[0][0]), t1 = t(rows[n - 1][0]) + 1.5 * 864e5;
   const span = (t1 - t0) || 1;
-  const bw = Math.max((W - M.l - M.r) / n * 0.62, 1.1);   // 蜡烛宽
+  const bw = Math.max((W - M.l - M.r) / n * 0.62, 1.1);
   const X = tv => M.l + (tv - t0) / span * (W - M.l - M.r);
-  const chan = o.chan || [];
-  // y范围:蜡烛高低 + 通道 + 作战位 + 成本
+  // 通道只画窗口内的点(否则y轴被窗口外旧值撑开)
+  const chan = (o.chan || []).filter(c => t(c.d + '-15') >= t0 - 45 * 864e5);
   const allP = [];
-  for (const r of rows) {
-    if (useCandle) { allP.push(r[2], r[3]); } else allP.push(r[1]);
-  }
+  for (const r of rows) { if (useCandle) { allP.push(r[2], r[3]); } else allP.push(r[1]); }
   for (const c of chan) allP.push(c.u1, c.l2);
   for (const L of (o.levels || [])) if (L.p != null) allP.push(L.p);
   if (o.cost) allP.push(o.cost);
@@ -39,50 +36,43 @@ export function drawChart(containerId, o) {
   const PH = H - M.t - M.b - VH - 8;
   const PY = v => M.t + (ymax - v) / (ymax - ymin) * PH;
   const vmax = Math.max(...rows.map(r => r[5] || 0), 1);
-  const VY = v => H - M.b - v / vmax * VH;
+  const vy0 = H - M.b;
+  const VY = v => vy0 - v / vmax * VH;
   const yfmt = o.yfmt || (v => v.toFixed(3));
-  const UP = o.cnColor !== false;   // 中式:红涨绿跌
 
   let s = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="background:${CHART_BG};border-radius:11px">`;
-  // 价格网格+右侧刻度
+  // 网格+右侧价格刻度
   for (let i = 0; i <= 5; i++) {
     const v = ymin + (ymax - ymin) * i / 5, y = PY(v);
     s += `<line x1="${M.l}" y1="${y}" x2="${W - M.r}" y2="${y}" stroke="${C.grid}" stroke-width="1"/>`
-      + `<text x="${W - M.r + 6}" y="${y + 4}" fill="${C.txt}" font-size="11" font-family="Menlo,monospace">${yfmt(v)}</text>`;
+      + `<text x="${W - M.r + 7}" y="${y + 4}" fill="${C.txt}" font-size="11.5" font-family="Menlo,monospace">${yfmt(v)}</text>`;
   }
-  // 成交量区分隔+刻度
-  const vy0 = H - M.b;
-  s += `<line x1="${M.l}" y1="${vy0 - VH - 6}" x2="${W - M.r}" y2="${vy0 - VH - 6}" stroke="${C.grid}"/>`
-    + `<text x="${W - M.r + 6}" y="${vy0 - VH + 4}" fill="#565d6b" font-size="10.5">量</text>`;
+  s += `<line x1="${M.l}" y1="${vy0 - VH - 6}" x2="${W - M.r}" y2="${vy0 - VH - 6}" stroke="${C.grid}"/>`;
   // 时间轴
-  for (let i = 0; i < 7; i++) {
-    const idx = Math.floor(i * (n - 1) / 6);
-    s += `<text x="${X(t(rows[idx][0]))}" y="${H - 8}" fill="${C.txt}" font-size="11" text-anchor="middle">${rows[idx][0].slice(2, 7)}</text>`;
+  for (let i = 0; i < 8; i++) {
+    const idx = Math.floor(i * (n - 1) / 7);
+    s += `<text x="${X(t(rows[idx][0]))}" y="${H - 10}" fill="${C.txt}" font-size="11" text-anchor="middle">${rows[idx][0].slice(2, 7)}</text>`;
   }
-  const rightLabels = [];
   // 通道带
   if (chan.length) {
     const pts = k => chan.map(c => X(t(c.d + '-15')) + ',' + PY(c[k])).join(' ');
     const fill = chan.map(c => X(t(c.d + '-15')) + ',' + PY(c.u1)).join(' ') + ' ' +
       chan.slice().reverse().map(c => X(t(c.d + '-15')) + ',' + PY(c.l1)).join(' ');
-    s += `<polygon points="${fill}" fill="#2962ff0f"/>`;
-    s += `<polyline points="${pts('u1')}" fill="none" stroke="${C.up}66" stroke-width="1" stroke-dasharray="5 4"/>`;
-    s += `<polyline points="${pts('l1')}" fill="none" stroke="${C.down}66" stroke-width="1" stroke-dasharray="5 4"/>`;
-    s += `<polyline points="${pts('l2')}" fill="none" stroke="${C.down}33" stroke-width="1" stroke-dasharray="2 4"/>`;
-    s += `<polyline points="${pts('mid')}" fill="none" stroke="#2962ff" stroke-width="1.3"/>`;
+    s += `<polygon points="${fill}" fill="${C.accent}0d"/>`;
+    s += `<polyline points="${pts('u1')}" fill="none" stroke="${C.up}55" stroke-width="1" stroke-dasharray="5 4"/>`;
+    s += `<polyline points="${pts('l1')}" fill="none" stroke="${C.down}55" stroke-width="1" stroke-dasharray="5 4"/>`;
+    s += `<polyline points="${pts('l2')}" fill="none" stroke="${C.down}30" stroke-width="1" stroke-dasharray="2 4"/>`;
+    s += `<polyline points="${pts('mid')}" fill="none" stroke="${C.accent}" stroke-width="1.3"/>`;
     const lc = chan[chan.length - 1], lx = X(t(lc.d + '-15'));
-    for (const [k, c] of [['u1', C.up + '66'], ['l1', C.down + '66'], ['mid', '#2962ff99']]) {
+    for (const [k, c] of [['u1', C.up + '55'], ['l1', C.down + '55'], ['mid', C.accent + '66']]) {
       s += `<line x1="${lx}" y1="${PY(lc[k])}" x2="${W - M.r}" y2="${PY(lc[k])}" stroke="${c}" stroke-width="1" stroke-dasharray="2 3"/>`;
     }
-    rightLabels.push([PY(lc.mid), '#2962ff', '中轨 ' + yfmt(lc.mid)]);
-    rightLabels.push([PY(lc.u1), C.up, '+1σ ' + yfmt(lc.u1)]);
-    rightLabels.push([PY(lc.l1), C.down, '-1σ ' + yfmt(lc.l1)]);
   }
   // MA20
   if (o.ma20) {
     const cl = rows.map(r => r[cidx]);
     const pt = i => i >= 20 ? X(t(rows[i][0])) + ',' + PY(cl.slice(i - 20, i).reduce((a, b) => a + b, 0) / 20) : '';
-    s += `<polyline points="${cl.map((_, i) => pt(i)).filter(Boolean).join(' ')}" fill="none" stroke="#fbbf24" stroke-width="1.1" opacity=".75"/>`;
+    s += `<polyline points="${cl.map((_, i) => pt(i)).filter(Boolean).join(' ')}" fill="none" stroke="#d97706" stroke-width="1.2" opacity=".8"/>`;
   }
   // 蜡烛/收盘线 + 成交量
   if (useCandle) {
@@ -93,44 +83,48 @@ export function drawChart(containerId, o) {
       const col = up ? C.up : C.down;
       s += `<line x1="${x}" y1="${PY(hi)}" x2="${x}" y2="${PY(lo)}" stroke="${col}" stroke-width="1"/>`;
       const y1 = PY(Math.max(op, cl)), y2 = PY(Math.min(op, cl));
-      s += `<rect x="${x - bw / 2}" y="${y1}" width="${bw}" height="${Math.max(y2 - y1, 1)}" fill="${up ? col : CHART_BG}" stroke="${col}" stroke-width="${up ? 0 : 1}" rx="${Math.min(bw / 4, 1.5)}"/>`;
-      if (vol) s += `<rect x="${x - bw / 2}" y="${VY(vol)}" width="${bw}" height="${vy0 - VY(vol)}" fill="${col}" opacity=".32"/>`;
+      s += `<rect x="${x - bw / 2}" y="${y1}" width="${bw}" height="${Math.max(y2 - y1, 1)}" fill="${col}" rx="${Math.min(bw / 4, 1.5)}"/>`;
+      if (vol) s += `<rect x="${x - bw / 2}" y="${VY(vol)}" width="${bw}" height="${vy0 - VY(vol)}" fill="${col}" opacity=".2"/>`;
     }
   } else {
-    s += `<polyline points="${rows.map(r => X(t(r[0])) + ',' + PY(r[1])).join(' ')}" fill="none" stroke="#e8edf5" stroke-width="1.6"/>`;
+    s += `<polyline points="${rows.map(r => X(t(r[0])) + ',' + PY(r[1])).join(' ')}" fill="none" stroke="#232a36" stroke-width="1.7"/>`;
   }
-  // 实时价标签(左侧大字)
+  // 作战位(横线,标签进图例)
+  for (const L of (o.levels || [])) {
+    if (L.p == null) continue;
+    s += `<line x1="${M.l}" y1="${PY(L.p)}" x2="${W - M.r}" y2="${PY(L.p)}" stroke="${L.color}" stroke-width="${L.w || 1.5}" ${L.dash ? `stroke-dasharray="${L.dash}"` : ''} opacity=".85"/>`;
+  }
+  // 成本线(图内唯一文字标签)
+  if (o.cost) {
+    s += `<line x1="${M.l}" y1="${PY(o.cost)}" x2="${W - M.r}" y2="${PY(o.cost)}" stroke="#98a2b3" stroke-width="1" stroke-dasharray="7 4"/>`
+      + `<text x="${M.l + 6}" y="${PY(o.cost) - 5}" fill="#98a2b3" font-size="11">成本 ${o.cost.toFixed(3)}</text>`;
+  }
+  // 实时价:右侧价格轴气泡
   if (o.live != null) {
     const x = X(t(rows[n - 1][0])), y = PY(o.live);
     const col = n > 1 && o.live >= rows[n - 2][cidx] ? C.up : C.down;
-    s += `<circle cx="${x}" cy="${y}" r="3.2" fill="#fff"><animate attributeName="r" values="3.2;5;3.2" dur="2s" repeatCount="indefinite"/></circle>`
-      + `<rect x="${M.l + 2}" y="${y - 9}" width="${(yfmt(o.live) + '').length * 7 + 10}" height="18" rx="4" fill="${col}"/>`
-      + `<text x="${M.l + 8}" y="${y + 4.5}" fill="#fff" font-size="12" font-weight="700" font-family="Menlo,monospace">${yfmt(o.live)}</text>`;
-  }
-  // 作战位
-  for (const L of (o.levels || [])) {
-    if (L.p == null) continue;
-    s += `<line x1="${M.l}" y1="${PY(L.p)}" x2="${W - M.r}" y2="${PY(L.p)}" stroke="${L.color}" stroke-width="${L.w || 1.5}" ${L.dash ? `stroke-dasharray="${L.dash}"` : ''} opacity=".9"/>`;
-    rightLabels.push([PY(L.p), L.color, L.label]);
-  }
-  // 成本线
-  if (o.cost) {
-    s += `<line x1="${M.l}" y1="${PY(o.cost)}" x2="${W - M.r}" y2="${PY(o.cost)}" stroke="#94a3b8" stroke-width="1" stroke-dasharray="7 4"/>`;
-    rightLabels.push([PY(o.cost), '#94a3b8', '成本 ' + o.cost.toFixed(3)]);
-  }
-  // 右侧标签碰撞避让
-  rightLabels.sort((a, b) => a[0] - b[0]);
-  for (let i = 1; i < rightLabels.length; i++) {
-    if (rightLabels[i][0] - rightLabels[i - 1][0] < 13.5) rightLabels[i][0] = rightLabels[i - 1][0] + 13.5;
-  }
-  for (const [y, c, lab] of rightLabels) {
-    if (y < M.t + 8 || y > H - M.b - VH - 14) continue;
-    s += `<text x="${W - M.r + 6}" y="${y + 3.5}" fill="${c}" font-size="11" font-weight="600">${lab}</text>`;
+    s += `<circle cx="${x}" cy="${y}" r="3.2" fill="#fff" stroke="${col}" stroke-width="2"><animate attributeName="r" values="3.2;5;3.2" dur="2s" repeatCount="indefinite"/></circle>`;
+    const by = Math.max(M.t + 10, Math.min(y, vy0 - VH - 12));
+    const bw2 = (yfmt(o.live) + '').length * 7.5 + 12;
+    s += `<rect x="${W - M.r + 2}" y="${by - 9}" width="${bw2}" height="18" rx="4" fill="${col}"/>`
+      + `<text x="${W - M.r + 8}" y="${by + 4.5}" fill="#fff" font-size="11.5" font-weight="700" font-family="Menlo,monospace">${yfmt(o.live)}</text>`;
   }
   s += `<line id="${containerId}-cross" x1="0" x2="0" y1="${M.t}" y2="${vy0}" stroke="${C.cross}" stroke-width="1" visibility="hidden"/>`;
-  s += `</svg><div class="tip"></div>`;
-  el.innerHTML = s;
-  // 悬停:十字线+OHLC提示
+  s += `</svg>`;
+
+  // ---------- 图例条 ----------
+  const lg = [];
+  for (const L of (o.levels || [])) if (L.p != null) lg.push([L.color, L.label]);
+  if (chan.length) {
+    const lc = chan[chan.length - 1];
+    lg.push([C.accent, '中轨 ' + yfmt(lc.mid)], [C.up, '+1σ ' + yfmt(lc.u1)], [C.down, '-1σ ' + yfmt(lc.l1)]);
+  }
+  if (o.ma20) lg.push(['#d97706', 'MA20']);
+  if (o.cost) lg.push(['#98a2b3', '成本 ' + o.cost.toFixed(3)]);
+  const legend = lg.length ? `<div class="clegend">${lg.map(([c, t2]) => `<span class="li"><i style="background:${c}"></i>${t2}</span>`).join('')}</div>` : '';
+  el.innerHTML = s + legend + `<div class="tip"></div>`;
+
+  // 悬停:十字线+OHLC
   const svg = el.querySelector('svg'), tip = el.querySelector('.tip'), cross = el.querySelector('#' + containerId + '-cross');
   svg.addEventListener('mousemove', e => {
     const r = svg.getBoundingClientRect();
@@ -149,11 +143,11 @@ export function drawChart(containerId, o) {
       tip.innerHTML = `<b>${rw[0]}</b> <span style="color:${cc}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span><br>`
         + `开 <b>${yfmt(rw[1])}</b> 高 <b style="color:${C.up}">${yfmt(rw[2])}</b><br>`
         + `低 <b style="color:${C.down}">${yfmt(rw[3])}</b> 收 <b>${yfmt(rw[4])}</b><br>`
-        + `量 ${(rw[5] / 1e4).toFixed(0)}万`;
+        + `量 ${rw[5] ? (rw[5] / 1e4).toFixed(0) + '万' : '—'}`;
     } else {
       tip.innerHTML = `<b>${rw[0]}</b> · <b>${yfmt(rw[1])}</b> <span style="color:${cc}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span>`;
     }
-    tip.style.left = Math.min(Math.max(e.clientX - r.left + 14, 0), r.width - 180) + 'px';
+    tip.style.left = Math.min(Math.max(e.clientX - r.left + 14, 0), r.width - 185) + 'px';
     tip.style.top = (e.clientY - r.top - 36) + 'px';
   });
   svg.addEventListener('mouseleave', () => { tip.style.display = 'none'; cross.setAttribute('visibility', 'hidden'); });
@@ -163,7 +157,7 @@ export function drawChart(containerId, o) {
 export function drawSpark(containerId, closesArr, color) {
   const el = document.getElementById(containerId);
   if (!el || !closesArr.length) return;
-  const W = el.clientWidth || 110, H = el.clientHeight || 34;
+  const W = el.clientWidth || 110, H = el.clientHeight || 36;
   const vmin = Math.min(...closesArr), vmax = Math.max(...closesArr);
   const X = i => i / (closesArr.length - 1 || 1) * (W - 2) + 1;
   const Y = v => H - 3 - (v - vmin) / (vmax - vmin || 1) * (H - 6);
@@ -171,15 +165,15 @@ export function drawSpark(containerId, closesArr, color) {
   const up = closesArr[closesArr.length - 1] >= closesArr[0];
   const c = color || (up ? C.up : C.down);
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:100%;display:block">
-    <polyline points="${pts}" fill="none" stroke="${c}" stroke-width="1.4"/>
-    <circle cx="${X(closesArr.length - 1)}" cy="${Y(closesArr[closesArr.length - 1])}" r="2" fill="${c}"/></svg>`;
+    <polyline points="${pts}" fill="none" stroke="${c}" stroke-width="1.5"/>
+    <circle cx="${X(closesArr.length - 1)}" cy="${Y(closesArr[closesArr.length - 1])}" r="2.2" fill="${c}"/></svg>`;
 }
 
-// 折线图(账户收益曲线等):series=[{name,color,points:[[date,val]...]}]
+// 折线图(账户收益曲线等)
 export function drawCurve(containerId, o) {
   const el = document.getElementById(containerId);
   const W = Math.max(el.clientWidth || 920, 640), H = o.height || 300;
-  const M = { l: 58, r: 16, t: 16, b: 26 };
+  const M = { l: 58, r: 16, t: 16, b: 28 };
   const t = s => new Date(s + 'T00:00:00').getTime();
   const all = o.series.flatMap(s => s.points.map(p => p[1]));
   const t0 = t(o.series[0].points[0][0]), t1 = t(o.series[0].points[o.series[0].points.length - 1][0]);
@@ -192,23 +186,23 @@ export function drawCurve(containerId, o) {
   for (let i = 0; i <= 4; i++) {
     const v = ymin + (ymax - ymin) * i / 4, y = Y(v);
     s += `<line x1="${M.l}" y1="${y}" x2="${W - M.r}" y2="${y}" stroke="${C.grid}"/>`
-      + `<text x="${M.l - 7}" y="${y + 4}" fill="${C.txt}" font-size="11.5" text-anchor="end">${yfmt(v)}</text>`;
+      + `<text x="${M.l - 7}" y="${y + 4}" fill="${C.txt}" font-size="11.5" text-anchor="end" font-family="Menlo,monospace">${yfmt(v)}</text>`;
   }
   const pts = o.series[0].points;
   for (let i = 0; i < 7; i++) {
     const idx = Math.floor(i * (pts.length - 1) / 6);
-    s += `<text x="${X(t(pts[idx][0]))}" y="${H - 7}" fill="${C.txt}" font-size="11" text-anchor="middle">${pts[idx][0].slice(2, 7)}</text>`;
+    s += `<text x="${X(t(pts[idx][0]))}" y="${H - 8}" fill="${C.txt}" font-size="11" text-anchor="middle">${pts[idx][0].slice(2, 7)}</text>`;
   }
   if (o.base != null) {
-    s += `<line x1="${M.l}" y1="${Y(o.base)}" x2="${W - M.r}" y2="${Y(o.base)}" stroke="#64748b" stroke-width="1" stroke-dasharray="6 4"/>`
-      + `<text x="${M.l + 4}" y="${Y(o.base) - 5}" fill="#94a3b8" font-size="11">${o.baseLabel || '基准'}</text>`;
+    s += `<line x1="${M.l}" y1="${Y(o.base)}" x2="${W - M.r}" y2="${Y(o.base)}" stroke="#98a2b3" stroke-width="1" stroke-dasharray="6 4"/>`
+      + `<text x="${M.l + 4}" y="${Y(o.base) - 5}" fill="#7a8494" font-size="11">${o.baseLabel || '基准'}</text>`;
   }
   for (const se of o.series) {
     const path = se.points.map(p => X(t(p[0])) + ',' + Y(p[1])).join(' ');
-    s += `<polyline points="${path}" fill="none" stroke="${se.color}" stroke-width="${se.width || 1.7}" stroke-linejoin="round" ${se.dash ? `stroke-dasharray="${se.dash}"` : ''}/>`;
+    s += `<polyline points="${path}" fill="none" stroke="${se.color}" stroke-width="${se.width || 1.8}" stroke-linejoin="round" ${se.dash ? `stroke-dasharray="${se.dash}"` : ''}/>`;
   }
   const lastPt = o.series[0].points[o.series[0].points.length - 1];
-  s += `<circle cx="${X(t(lastPt[0]))}" cy="${Y(lastPt[1])}" r="3.5" fill="#fff"/>`;
+  s += `<circle cx="${X(t(lastPt[0]))}" cy="${Y(lastPt[1])}" r="3.5" fill="#fff" stroke="${o.series[0].color}" stroke-width="2"/>`;
   s += `</svg><div class="tip"></div>`;
   el.innerHTML = s;
   const svg = el.querySelector('svg'), tip = el.querySelector('.tip');
@@ -222,7 +216,7 @@ export function drawCurve(containerId, o) {
     tip.style.display = 'block';
     tip.innerHTML = `<b>${pts[best][0]}</b>` + o.series.map(se =>
       `<br><span style="color:${se.color}">●</span> ${se.name}: ${o.tipFmt ? o.tipFmt(se.points[best][1]) : se.points[best][1].toFixed(0)}`).join('');
-    tip.style.left = Math.min(Math.max(e.clientX - r.left + 14, 0), r.width - 170) + 'px';
+    tip.style.left = Math.min(Math.max(e.clientX - r.left + 14, 0), r.width - 175) + 'px';
     tip.style.top = (e.clientY - r.top - 34) + 'px';
   });
   svg.addEventListener('mouseleave', () => { tip.style.display = 'none'; });

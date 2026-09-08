@@ -8,12 +8,18 @@ import { fmt } from '../config.js';
 
 const $ = id => document.getElementById(id);
 let chartSym = localStorage.getItem('sa_chart_sym') || 'games';
+let chartDays = +(localStorage.getItem('sa_chart_days') || 500);
 const SYMS = ['dividend', 'games', 'sse'];
 if (!SYMS.includes(chartSym)) chartSym = 'games';
 window.setChartSym = k => {
   chartSym = k;
   localStorage.setItem('sa_chart_sym', k);
-  store.notify();   // 只重渲染,不重算
+  store.notify();
+};
+window.setChartDays = d => {
+  chartDays = d;
+  localStorage.setItem('sa_chart_days', d);
+  store.notify();
 };
 
 export function renderDashboard(root) {
@@ -87,6 +93,9 @@ export function renderDashboard(root) {
     <div>
       <div class="ctabs">
         ${SYMS.map(k => `<button class="${chartSym === k ? 'on' : ''}" onclick="setChartSym('${k}')">${symNames[k]}</button>`).join('')}
+        <span class="sp"></span>
+        <button class="rbtn ${chartDays === 250 ? 'on' : ''}" onclick="setChartDays(250)">1年</button>
+        <button class="rbtn ${chartDays === 500 ? 'on' : ''}" onclick="setChartDays(500)">2年</button>
       </div>
       <div class="chartwrap"><div class="ct chartbox" id="ch-main"></div></div>
     </div>
@@ -186,33 +195,34 @@ export function renderDashboard(root) {
     <span>周收盘&gt;${rg.adds[1].price.toFixed(3)}? → 追涨档成立</span><span class="dist">${isFri ? '今天!' : '到周五看'}</span></div>`;
 
   // ---------- 主图表 ----------
+  const R = chartDays;
   const chartCfg = {
     dividend: () => ({
-      ohlc: D.dividend.ohlc, daily: D.dividend.daily, live: h, chan: chD.rows, cost: L.dividend.cost || null,
+      ohlc: D.dividend.ohlc.slice(-R), daily: D.dividend.daily.slice(-R), live: h, chan: chD.rows, cost: L.dividend.cost || null,
       levels: [
-        { p: cD.l15, label: '加仓① ' + fmt.p(cD.l15), color: '#26a69a' },
-        { p: cD.l2, label: '加仓② ' + fmt.p(cD.l2), color: '#1c7a6d', dash: '4 3' },
-        { p: cD.u1, label: '减仓 ' + fmt.p(cD.u1), color: '#ef5350' }],
+        { p: cD.l15, label: '加仓① ' + fmt.p(cD.l15), color: '#e02e44' },
+        { p: cD.l2, label: '加仓② ' + fmt.p(cD.l2), color: '#b02236', dash: '4 3' },
+        { p: cD.u1, label: '减仓 ' + fmt.p(cD.u1), color: '#0a9969' }],
     }),
     games: () => ({
-      ohlc: D.games.ohlc, daily: D.games.daily, live: g, chan: chG.rows, cost: L.games.cost || null,
+      ohlc: D.games.ohlc.slice(-R), daily: D.games.daily.slice(-R), live: g, chan: chG.rows, cost: L.games.cost || null,
       levels: [
-        { p: rg.adds[0].price, label: '回踩 ' + rg.adds[0].price.toFixed(2), color: '#26a69a' },
-        { p: rg.adds[1].price, label: '追涨 ' + rg.adds[1].price.toFixed(3), color: '#1c7a6d', dash: '5 3' },
-        { p: tp1, label: '止盈① ' + (tp1 ? fmt.p(tp1) : ''), color: '#ef5350' },
-        { p: tp2, label: '止盈② ' + (tp2 ? fmt.p(tp2) : ''), color: '#c53040' },
-        { p: cG.u1, label: '+1σ ' + fmt.p(cG.u1), color: '#f2828a', dash: '2 3' }],
+        { p: rg.adds[0].price, label: '回踩加仓 ' + rg.adds[0].price.toFixed(2), color: '#e02e44' },
+        { p: rg.adds[1].price, label: '突破追涨 ' + rg.adds[1].price.toFixed(3), color: '#e8626f', dash: '5 3' },
+        { p: tp1, label: '止盈① ' + (tp1 ? fmt.p(tp1) : ''), color: '#0a9969' },
+        { p: tp2, label: '止盈② ' + (tp2 ? fmt.p(tp2) : ''), color: '#0c7f5a' },
+        { p: cG.u1, label: '+1σ ' + fmt.p(cG.u1), color: '#35b58f', dash: '2 3' }],
     }),
     sse: () => ({
-      ohlc: D.sse.ohlc, daily: D.sse.daily, live: ss, ma20: true,
-      levels: [{ p: rg.sse_stop, label: '证伪线 ' + rg.sse_stop, color: '#ef5350', w: 1.8 }],
+      ohlc: D.sse.ohlc.slice(-R), daily: D.sse.daily.slice(-R), live: ss, ma20: true,
+      levels: [{ p: rg.sse_stop, label: '证伪线 ' + rg.sse_stop, color: '#e02e44', w: 2 }],
       yfmt: v => v.toFixed(0),
     }),
   };
   const el = document.getElementById('ch-main');
   if (el) {
     const cfg = chartCfg[chartSym]();
-    drawChart('ch-main', Object.assign({ height: 470 }, cfg));
+    drawChart('ch-main', Object.assign({ height: 520 }, cfg));
   }
 }
 
